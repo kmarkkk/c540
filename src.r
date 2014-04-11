@@ -9,8 +9,8 @@ library(reshape2)
 library(lubridate)
 library(foreach)
 library(doSNOW)
-library(EBImage)
-library(biOps)
+#library(EBImage)
+#library(biOps)
 
 ###################################################################
 ######### SET UP ENVIRONMENT ######################################
@@ -23,7 +23,7 @@ load('data.Rd');
 feature.train <-  read.csv('train_feature.csv');
 d.train = cbind(d.train, feature.train);
 rm(feature.train);
-#feature.train.sub <- read.csv('train_feature_subset.csv');
+feature.train.sub <- read.csv('train_feature_subset.csv');
 feature.test <- read.csv('test_feature.csv');
 
 
@@ -147,6 +147,7 @@ pred_algo_lm <- function(train_set, test_feature){
     # construct formula
     f = as.formula(paste('train_set$', coordinate.names[i], '~', paste(colnames(train_set)[31:37] , collapse='+')))
     
+    summary(lm(f, data=train_set))
     # train model
     lm.models[i] = lm(f, data=train_set);
 
@@ -190,12 +191,13 @@ eval_prediction <- function(pred_matrix, test_set){
 
 # Function that directly write train/validation/test dataset to the envoirnment
 generate_dataset <- function(raw_data, train_ratio, validation_ratio, test_ration){
-  rand_idx = sample(1:nrow(raw_data));
+  #rand_idx = sample(1:nrow(raw_data));
+  rand_idx = sample(1:nrow(d.test));
   
   idx.train <<- rand_idx[1:floor(train_ratio*nrow(raw_data))];
   idx.validation <<- rand_idx[ floor(validation_ratio*nrow(raw_data))+1 : floor(validation_ratio*nrow(raw_data))];
-  idx.test <<- rand_idx[ floor(test_ration*nrow(raw_data))+1 : length(rand_idx)];
-  
+  #idx.test <<- rand_idx[ floor(test_ration*nrow(raw_data))+1 : length(rand_idx)];
+  idx.test <<- rand_idx[ floor(0.2*nrow(d.test))+1 : ];
   
   d.train.train <<- raw_data[idx.train,];
   d.train.validation <<- raw_data[idx.validation,];
