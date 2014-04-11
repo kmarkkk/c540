@@ -1,0 +1,40 @@
+extract_cv_features() : loading  C:\Users\Artie Shen\Documents\Academy\2014 SPRING\COMP 540\Term Project\Facial Expression\data\test_img.csv 
+
+extract_cv_features() : finished loading  C:\Users\Artie Shen\Documents\Academy\2014 SPRING\COMP 540\Term Project\Facial Expression\data\test_img.csv , received 1783  images.
+
+finished  0 / 1783 
+
+finished  100 / 1783 
+
+finished  200 / 1783 
+
+finished  300 / 1783 
+
+finished  400 / 1783 
+
+finished  500 / 1783 
+
+finished  600 / 1783 
+
+finished  700 / 1783 
+
+finished  800 / 1783 
+
+finished  900 / 1783 
+
+finished  1000 / 1783 
+
+finished  1100 / 1783 
+
+finished  1200 / 1783 
+
+finished  1300 / 1783 
+
+finished  1400 / 1783 
+
+finished  1500 / 1783 
+
+finished  1600 / 1783 
+
+finished  1700 / 1783 
+

@@ -1,0 +1,2 @@
+xxxx;25:33,42:25;x_com, y_com
+xxxx;x_com, y_com

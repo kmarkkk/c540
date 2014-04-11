@@ -1,10 +1,16 @@
 # Required Library
 #install.packages('reshape2')
 #install.packages('lubridate')
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("EBImage")
+#install.packages('biOps');
+
 library(reshape2)
 library(lubridate)
 library(foreach)
 library(doSNOW)
+library(EBImage)
+library(biOps)
 
 ###################################################################
 ######### SET UP ENVIRONMENT ######################################
@@ -14,7 +20,15 @@ library(doSNOW)
 data.dir="~/Academy/2014 SPRING/COMP 540/Term Project/Facial Expression/data/";
 setwd(data.dir);
 load('data.Rd');
+feature.train <-  read.csv('train_feature.csv');
+d.train = cbind(d.train, feature.train);
+rm(feature.train);
+#feature.train.sub <- read.csv('train_feature_subset.csv');
+feature.test <- read.csv('test_feature.csv');
 
+
+#write.csv(im.test, file = "test_img.csv", row.names = FALSE);
+#write.csv(im.train[1:100,], file = "train_img_subset.csv", row.names = FALSE);
 
 ###################################################################
 ######### HELEPER FUNCTIONS #######################################
@@ -123,6 +137,33 @@ pred_algo_image <- function(train_set, test_set){
 
 
 
+# Function that uses linear regression to model the problem
+pred_algo_lm <- function(train_set, test_feature){
+  
+  # Train a lm model for each column
+  coordinate.names <- names(train_set);
+  lm.models = c();
+  for (i in 1:length(coordinate.names)){
+    # construct formula
+    f = as.formula(paste('train_set$', coordinate.names[i], '~', paste(colnames(train_set)[31:37] , collapse='+')))
+    
+    # train model
+    lm.models[i] = lm(f, data=train_set);
+
+  }
+  
+  # Predict using the trained model on the test data
+  p <- matrix(0, nrow(test_feature), ncol(train_set))
+  for (i in 1:length(coordinate.names)){
+    head(test_feature[,i])
+    p[,i] = predict(lm.models[i], test_feature[,i]);
+  }
+  
+  # Construct the output
+  colnames(p) <- names(train_set)
+  predictions <- data.frame(ImageId = 1:nrow(test_feature), p)
+  return(predictions)
+}
 
 
 
@@ -188,14 +229,18 @@ param.test.ratio = 0.2;
 generate_dataset(d.train, param.train.ratio, param.validation.ratio, param.test.ratio);
 predictions.naive = pred_algo_naive(d.train.train, d.train.test);
 head(predictions.naive)
-# don't include the first image column
 eval_prediction(predictions.naive[,2:ncol(predictions.naive)], d.train.test);
 #create_submission(predictions.naive,"submission_apr_6.csv");
 
-# Naive Image Algorithm
+# Naive Image Algorithm : NOT WORKING
 generate_dataset(d.train, param.train.ratio, param.validation.ratio, param.test.ratio);
 predictions.image = pred_algo_image(d.train.train, d.train.test);
 eval_prediction(predictions.image[,2:ncol(predictions.image)], d.train.test);
+
+# Linear Regression Algorithm
+generate_dataset(d.train, param.train.ratio, param.validation.ratio, param.test.ratio);
+predictions.lm = pred_algo_lm(d.train.train, d.train.test);
+eval_prediction(predictions.lm[,2:ncol(predictions.image)], d.train.test);
 
 
 ###################################################################
@@ -203,9 +248,45 @@ eval_prediction(predictions.image[,2:ncol(predictions.image)], d.train.test);
 ###################################################################
 
 # Visualize the image
-im <- matrix(data=rev(im.train[1,]), nrow=96, ncol=96);
-image(1:96, 1:96, im, col=gray((0:255)/255));
+
+
+
+naive_nose_x = 48.35937;
+naive_nose_y = 62.72804;
+for (i in 1:100){
+  im <- matrix(data=rev(im.train[i,]), nrow=96, ncol=96);
+  image(1:96, 1:96, im, col=gray((0:255)/255));
+  # add points
+  points(feature.train[i,]$centroid_x, feature.train[i,]$centroid_y, col="red")
+  points(naive_nose_x, naive_nose_y, col="green")
+  points(d.train[i,]$nose_tip_x, d.train[i,]$nose_tip_x, col="blue")
+  points(predict(fit_x, feature.train[i,]), predict(fit_y, feature.train[i,]), col="yellow");
+  line = readline();
+  cat(i,"\n")
+  if (line == 'break') {
+    break;
+  }
+} 
+
+
+
+
+for (i in 1:nrow(im.test)) {
+  im <- matrix(data=rev(im.test[i,]), nrow=96, ncol=96);
+  image(1:96, 1:96, im, col=gray((0:255)/255));
+  line = readline();
+  cat(i,"\n")
+  if (line == 'break') {
+      break;
+  }
+}
+
+
 # vis key points
+im <- matrix(data=rev(im.test[i,]), nrow=96, ncol=96);
+image(1:96, 1:96, im, col=gray((0:255)/255));
+points(96-44.6,96-42.3, col="red")
+
 points(96-d.train$nose_tip_x[1],         96-d.train$nose_tip_y[1],         col="red");
 points(96-d.train$left_eye_center_x[1],  96-d.train$left_eye_center_y[1],  col="blue");
 points(96-d.train$right_eye_center_x[1], 96-d.train$right_eye_center_y[1], col="green");
@@ -219,4 +300,77 @@ im  <- matrix(data=rev(im.train[idx,]), nrow=96, ncol=96)
 image(1:96, 1:96, im, col=gray((0:255)/255))
 points(96-d.train$nose_tip_x[idx], 96-d.train$nose_tip_y[idx], col="red")
 
+
+
+###################################################################
+######### Workspace ######################################
+###################################################################
+
+
+# Create Image
+im <- matrix(data=rev(im.train[51,]), nrow=96, ncol=96);
+im = rotate(im, 90);
+
+
+
+# biOps
+img = imagedata(im);
+plot(imagedata(img))
+imageType(img)
+y = imgCanny(img, sigma = 1.5)
+plot(imagedata(y))
+
+#image(1:96, 1:96, im, col=gray((0:255)/255));
+im = rotate(im, 180);
+img = Image(im);
+colorMode(img)=Grayscale;
+print(img);
+display(img);
+
+
+
+# brush
+#flo = makeBrush(21, shape = 'disc', step = FALSE)^2;
+#flo = flo/sum(flo);
+#lenaflo = filter2(img, flo);
+#display(lenaflo)
+fhi = matrix(1, nc=3, nr=3);
+fhi[2,2] = -8;
+lenafhi = filter2(img, fhi)
+display(lenafhi)
+lenafhi[lenafhi>=0.3] = 1;
+lenafhi[lenafhi< 0.3] = 0;
+display(lenafhi)
+
+# countour
+con = contour(lenafhi);
+
+#
+nmask = thresh(img, 10, 10, 0.5);
+display(img);
+
+
+
+cal_diff<-function(x, y, img){
+  l = c();
+  x_s = ifelse(x-1<=0, 1, x-1 );
+  x_e = ifelse(x+1>96, 96, x+1 );
+  y_s = ifelse(y-1<=0, 1, y-1 );
+  y_e = ifelse(y+1>0, 96, y+1 );
+  
+  for (i in x_s:x_e) {
+    for (j in y_s:y_e) {
+      l[length(l)+1] = abs(img[i][j]-img[x][y]);
+    }
+  }
+
+  return(mean(l));
+  
+}
+
+
+# vis key points
+points(96-d.train$nose_tip_x[1],         96-d.train$nose_tip_y[1],         col="red");
+points(96-d.train$left_eye_center_x[1],  96-d.train$left_eye_center_y[1],  col="blue");
+points(96-d.train$right_eye_center_x[1], 96-d.train$right_eye_center_y[1], col="green");
 
