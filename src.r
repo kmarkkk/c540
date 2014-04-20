@@ -279,9 +279,9 @@ leanring_curve <- function(interval, train_set, test_set, FUN = algo){
 
 # Initialization
 set.seed(second(Sys.time()));
-param.train.ratio = 0.7;
+param.train.ratio = 0.8;
 param.validation.ratio = 0.1;
-param.test.ratio = 0.2;
+param.test.ratio = 0.1;
 
 # Naive Mean Method
 generate_dataset(d.train, im.train, param.train.ratio, param.validation.ratio, param.test.ratio);
@@ -308,6 +308,14 @@ predictions.lm.submission = pred_algo_lm(d.train, feature.test);
 create_submission(predictions.lm.submission,"submission_lr.csv");
 # bad data: 6316
 
+# Integerated Method
+set.seed(second(Sys.time()));
+param.train.ratio = 0.01;
+param.validation.ratio = 0.98;
+param.test.ratio = 0.01;
+generate_dataset(d.train, im.train, param.train.ratio, param.validation.ratio, param.test.ratio);
+predictions.lm = pred_algo_lm(d.train.train, d.train.test[,31:37]);
+predictions.int = pred_algo_image(d.train.train, im.train.train, predictions.lm, im.train.test);
 
 
 
