@@ -8,7 +8,8 @@
 library(reshape2)
 library(lubridate)
 library(foreach)
-library(doSNOW)
+library(ggplot2)
+#library(doSNOW)
 #library(EBImage)
 #library(biOps)
 
@@ -21,11 +22,24 @@ data.dir="~/Academy/2014 SPRING/COMP 540/Term Project/Facial Expression/data/";
 setwd(data.dir);
 load('data.Rd');
 feature.train <-  read.csv('train_feature.csv');
+d.train$id = 1:nrow(d.train);
 d.train = cbind(d.train, feature.train);
 rm(feature.train);
-feature.train.sub <- read.csv('train_feature_subset.csv');
+rm(d.test)
+#feature.train.sub <- read.csv('train_feature_subset.csv');
 feature.test <- read.csv('test_feature.csv');
 
+# Data Clean-up
+# Method 1: substitute na with column mean
+#remove_na <- function(x){
+#  x = as.numeric(x);
+#  x[is.na(x)]=mean(x, na.rm=T);
+#  return(x);
+#}
+#d.train = data.frame(apply(d.train, 2, remove_na))
+
+# Method 2: filter out row with na
+#d.train = na.omit(d.train)
 
 #write.csv(im.test, file = "test_img.csv", row.names = FALSE);
 #write.csv(im.train[1:100,], file = "train_img_subset.csv", row.names = FALSE);
@@ -43,6 +57,7 @@ pred_algo_naive <- function(train_set, test_set){
   predictions <- data.frame(ImageId = 1:nrow(test_set), p)
   return(predictions);
 }
+
 
 # Function that implements the image algorithm
 # @return: a prediction matrix
@@ -135,33 +150,28 @@ pred_algo_image <- function(train_set, test_set){
 
 
 
-
-
 # Function that uses linear regression to model the problem
 pred_algo_lm <- function(train_set, test_feature){
   
   # Train a lm model for each column
   coordinate.names <- names(train_set);
-  lm.models = c();
-  for (i in 1:length(coordinate.names)){
+  p <- matrix(0, nrow(test_feature), 30)
+  for (i in 1:30){
     # construct formula
-    f = as.formula(paste('train_set$', coordinate.names[i], '~', paste(colnames(train_set)[31:37] , collapse='+')))
+    #f = as.formula(paste( coordinate.names[i], '~', paste(colnames(train_set)[31:37] , collapse='+')))
     
-    summary(lm(f, data=train_set))
+    f = as.formula(paste( coordinate.names[i], '~', 'centroid_x+centroid_y+ellipse_center_x+ellipse_center_y'))
     # train model
-    lm.models[i] = lm(f, data=train_set);
+    lm.models = lm(f, data=train_set);
+    
+    # predict
+    p[,i] = predict(lm.models, test_feature);
 
   }
   
-  # Predict using the trained model on the test data
-  p <- matrix(0, nrow(test_feature), ncol(train_set))
-  for (i in 1:length(coordinate.names)){
-    head(test_feature[,i])
-    p[,i] = predict(lm.models[i], test_feature[,i]);
-  }
   
   # Construct the output
-  colnames(p) <- names(train_set)
+  colnames(p) <- names(train_set)[1:30]
   predictions <- data.frame(ImageId = 1:nrow(test_feature), p)
   return(predictions)
 }
@@ -182,6 +192,7 @@ create_submission <- function(pred_matrix, file_name){
   write.csv(submission, file=file_name, quote=F, row.names=F)  
 }
 
+
 # Function that scores a prediction
 # @return: a double that denotes the score
 eval_prediction <- function(pred_matrix, test_set){
@@ -190,26 +201,66 @@ eval_prediction <- function(pred_matrix, test_set){
 
 
 # Function that directly write train/validation/test dataset to the envoirnment
-generate_dataset <- function(raw_data, train_ratio, validation_ratio, test_ration){
-  #rand_idx = sample(1:nrow(raw_data));
-  rand_idx = sample(1:nrow(d.test));
+generate_dataset <- function(raw_data, image_data, train_ratio, validation_ratio, test_ration){
+  rand_idx = sample(1:nrow(raw_data));
+  test.idx.end = floor(train_ratio*nrow(raw_data));
+  validation.idx.end =  test.idx.end + 1 + floor(validation_ratio*nrow(raw_data));
   
-  idx.train <<- rand_idx[1:floor(train_ratio*nrow(raw_data))];
-  idx.validation <<- rand_idx[ floor(validation_ratio*nrow(raw_data))+1 : floor(validation_ratio*nrow(raw_data))];
-  #idx.test <<- rand_idx[ floor(test_ration*nrow(raw_data))+1 : length(rand_idx)];
-  idx.test <<- rand_idx[ floor(0.2*nrow(d.test))+1 : ];
+  idx.train <<- rand_idx[1:test.idx.end];
+  idx.validation <<- rand_idx[ (test.idx.end+1) :validation.idx.end];
+  idx.test <<- rand_idx[ (validation.idx.end+1) :length(rand_idx)];
+
   
   d.train.train <<- raw_data[idx.train,];
+  im.train.train <<- image_data[idx.train,];
   d.train.validation <<- raw_data[idx.validation,];
+  im.train.validation <<- image_data[idx.validation,];
   d.train.test <<- raw_data[idx.test,];
+  im.train.test <<- image_data[idx.test,]
 }
 
 
+# Function that visualize the results
+vis_img <- function(image_set, train_set,prediction){
+  
+  coordinate.names <- gsub("_x", "", names(train_set)[grep("_x", names(d.train))]);
+  
+  for (i in 1:nrow(image_set)){
+    im <- matrix(data=rev(image_set[i,]), nrow=96, ncol=96);
+    image(1:96, 1:96, im, col=gray((0:255)/255));
+    # add points
+    for (j in 1:length(coordinate.names)) {
+      coord_x <- paste(coordinate.names[j], "x", sep="_");
+      coord_y <- paste(coordinate.names[j], "y", sep="_");
+      
+      points(96-prediction[i,coord_x], 96-prediction[i,coord_y], col="red")
+      points(96-train_set[i,coord_x], 96-train_set[i,coord_y], col="blue")
+      
+    }
+    title(paste(train_set[i,]$id));
+    line = readline();
+    cat(train_set[i,]$id,"\n");
+    if (line == 'break') {
+      break;
+    }
+    
+  } 
+}
 
 
-
-
-
+# Draw the learning curve
+leanring_curve <- function(interval, train_set, test_set, FUN = algo){
+  
+  sq_error = 1:length(interval);
+  for (i in 1:length(interval)) {
+    pred = FUN(train_set[1:interval[i],], test_set[,32:38]);
+    
+    sq_error[i] = eval_prediction(pred[,2:31], test_set[,1:30]);
+  }
+  
+  df = data.frame(train_size = interval, error = sq_error )
+  ggplot(df, aes(x = train_size, y = error)) + geom_line()+ggtitle("Learning Curve");
+}
 
 
 
@@ -223,52 +274,45 @@ generate_dataset <- function(raw_data, train_ratio, validation_ratio, test_ratio
 
 # Initialization
 set.seed(second(Sys.time()));
-param.train.ratio = 0.6;
-param.validation.ratio = 0.2;
+param.train.ratio = 0.7;
+param.validation.ratio = 0.1;
 param.test.ratio = 0.2;
 
 # Naive Mean Method
-generate_dataset(d.train, param.train.ratio, param.validation.ratio, param.test.ratio);
+generate_dataset(d.train, im.train, param.train.ratio, param.validation.ratio, param.test.ratio);
 predictions.naive = pred_algo_naive(d.train.train, d.train.test);
 head(predictions.naive)
-eval_prediction(predictions.naive[,2:ncol(predictions.naive)], d.train.test);
+eval_prediction(predictions.naive[,2:31], d.train.test[,1:30]);
+vis_img(im.train.train, d.train.train[,1:30], predictions.naive);
+leanring_curve(seq(500,7000,500), d.train.train, d.train.test,pred_algo_naive);
 #create_submission(predictions.naive,"submission_apr_6.csv");
 
 # Naive Image Algorithm : NOT WORKING
-generate_dataset(d.train, param.train.ratio, param.validation.ratio, param.test.ratio);
+generate_dataset(d.train, im.train, param.train.ratio, param.validation.ratio, param.test.ratio);
 predictions.image = pred_algo_image(d.train.train, d.train.test);
 eval_prediction(predictions.image[,2:ncol(predictions.image)], d.train.test);
 
 # Linear Regression Algorithm
-generate_dataset(d.train, param.train.ratio, param.validation.ratio, param.test.ratio);
-predictions.lm = pred_algo_lm(d.train.train, d.train.test);
-eval_prediction(predictions.lm[,2:ncol(predictions.image)], d.train.test);
+generate_dataset(d.train, im.train, param.train.ratio, param.validation.ratio, param.test.ratio);
+predictions.lm = pred_algo_lm(d.train.train, d.train.test[,31:37]);
+eval_prediction(predictions.lm[,2:ncol(predictions.lm)], d.train.test[1:30]);
+vis_img(im.train.train, d.train.train[,1:31], predictions.lm);
+leanring_curve(seq(500,7000,500), d.train.train, d.train.test,pred_algo_lm);
+predictions.lm.submission = pred_algo_lm(d.train, feature.test);
+create_submission(predictions.lm.submission,"submission_lr.csv");
+
+
+
+
 
 
 ###################################################################
 ######### Visualization Code ######################################
 ###################################################################
 
-# Visualize the image
 
 
 
-naive_nose_x = 48.35937;
-naive_nose_y = 62.72804;
-for (i in 1:100){
-  im <- matrix(data=rev(im.train[i,]), nrow=96, ncol=96);
-  image(1:96, 1:96, im, col=gray((0:255)/255));
-  # add points
-  points(feature.train[i,]$centroid_x, feature.train[i,]$centroid_y, col="red")
-  points(naive_nose_x, naive_nose_y, col="green")
-  points(d.train[i,]$nose_tip_x, d.train[i,]$nose_tip_x, col="blue")
-  points(predict(fit_x, feature.train[i,]), predict(fit_y, feature.train[i,]), col="yellow");
-  line = readline();
-  cat(i,"\n")
-  if (line == 'break') {
-    break;
-  }
-} 
 
 
 
@@ -307,6 +351,10 @@ points(96-d.train$nose_tip_x[idx], 96-d.train$nose_tip_y[idx], col="red")
 ###################################################################
 ######### Workspace ######################################
 ###################################################################
+
+# Test LM
+lm.models = lm(left_eye_center_x ~ centroid_x+centroid_y+ellipse_center_x+ellipse_center_y, data=d.train);
+summary(lm.models);
 
 
 # Create Image
