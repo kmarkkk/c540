@@ -67,7 +67,7 @@ pred_algo_naive <- function(train_set, test_set){
 pred_algo_image <- function(train_set, train_img, test_set, test_img) {
   
   # list the coordinates we have to predict
-  coordinate.names <- gsub("_x", "", names(train_set)[grep("_x", names(train_set))])
+  coordinate.names <- gsub("_x", "", names(train_set)[grep("_x", names(train_set)[1:30])])
   
   
   # for each one, compute the average patch
@@ -98,13 +98,14 @@ pred_algo_image <- function(train_set, train_img, test_set, test_img) {
   }
   
   # for each coordinate and for each test image, find the position that best correlates with the average patch
-  p <- foreach(coord_i = 1:length(coordinate.names), .combine=cbind) %dopar% {
+  p <- foreach(coord_i = 1:length(coordinate.names), .combine=cbind) %do% {
+
     # the coordinates we want to predict
     coord   <- coordinate.names[coord_i]
+    cat(sprintf('%d coord %s\n', coord_i, coord))
     coord_x <- paste(coord, "x", sep="_")
     coord_y <- paste(coord, "y", sep="_")
     
-  
     # for each image...
     r <- foreach(i = 1:nrow(test_set), .combine=rbind) %do% {
       if ((coord_i==1)&&((i %% 100)==0)) { cat(sprintf("%d/%d\n", i, nrow(test_set))) }
@@ -128,10 +129,11 @@ pred_algo_image <- function(train_set, train_img, test_set, test_img) {
       # build a list of all positions to be tested
       params <- expand.grid(x = x1:x2, y = y1:y2)
       
+      
       im <- matrix(data = test_img[i,], nrow=96, ncol=96)
       
       # ... compute a score for each position ...
-      r  <- foreach(j = 1:nrow(params), .combine=rbind) %do% {
+      pr  <- foreach(j = 1:nrow(params), .combine=rbind) %do% {
         x     <- params$x[j]
         y     <- params$y[j]
         p     <- im[(x-patch_size):(x+patch_size), (y-patch_size):(y+patch_size)]
@@ -141,18 +143,22 @@ pred_algo_image <- function(train_set, train_img, test_set, test_img) {
       }
       
       # ... and return the best
-      best <- r[which.max(r$score), c("x", "y")]
+      best <- pr[which.max(pr$score), c("x", "y")]
+      # cat(sprintf("%d best for %s is %d, %d \n",i, coordinate.names[coord_i], best$x, best$y))
+      best
     }
+  
     names(r) <- c(coord_x, coord_y)
     r
   }
+
+# print(p, row.names = FALSE)
   
   # prepare file for submission
   predictions <- data.frame(ImageId = 1:nrow(test_set), p);
   return(predictions);
   
 }
-
 
 
 # Function that uses linear regression to model the problem
@@ -178,7 +184,7 @@ pred_algo_lm <- function(train_set, test_feature){
   # Construct the output
   colnames(p) <- names(train_set)[1:30]
   predictions <- data.frame(ImageId = 1:nrow(test_feature), p)
-  return(predictions)
+  return(predictions[,2:32])
 }
 
 
