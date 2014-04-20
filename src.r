@@ -281,6 +281,7 @@ param.test.ratio = 0.2;
 # Naive Mean Method
 generate_dataset(d.train, im.train, param.train.ratio, param.validation.ratio, param.test.ratio);
 predictions.naive = pred_algo_naive(d.train.train, d.train.test);
+predictions.naive[1:2,]$id
 head(predictions.naive)
 eval_prediction(predictions.naive[,2:31], d.train.test[,1:30]);
 vis_img(im.train.train, d.train.train[,1:30], predictions.naive);
@@ -300,7 +301,7 @@ vis_img(im.train.train, d.train.train[,1:31], predictions.lm);
 leanring_curve(seq(500,7000,500), d.train.train, d.train.test,pred_algo_lm);
 predictions.lm.submission = pred_algo_lm(d.train, feature.test);
 create_submission(predictions.lm.submission,"submission_lr.csv");
-
+# bad data: 6316
 
 
 
