@@ -18,7 +18,7 @@ library(ggplot2)
 ###################################################################
 
 # Load enviornment
-data.dir="~/Academy/2014 SPRING/COMP 540/Term Project/Facial Expression/data/";
+data.dir="/Users/wenxuancai/CS/540/c540";
 setwd(data.dir);
 load('data.Rd');
 feature.train <-  read.csv('train_feature.csv');
@@ -28,6 +28,9 @@ rm(feature.train);
 rm(d.test)
 #feature.train.sub <- read.csv('train_feature_subset.csv');
 feature.test <- read.csv('test_feature.csv');
+
+patch_size  <- 10
+search_size <- 2
 
 # Data Clean-up
 # Method 1: substitute na with column mean
@@ -61,27 +64,27 @@ pred_algo_naive <- function(train_set, test_set){
 
 # Function that implements the image algorithm
 # @return: a prediction matrix
-pred_algo_image <- function(train_set, test_set){
+pred_algo_image <- function(train_set, train_img, test_set, test_img) {
   
   # list the coordinates we have to predict
   coordinate.names <- gsub("_x", "", names(train_set)[grep("_x", names(train_set))])
   
   
   # for each one, compute the average patch
-  mean.patches <- foreach(coord = coordinate.names) %dopar% {
+  mean.patches <- foreach(coord = coordinate.names) %do% {
     cat(sprintf("computing mean patch for %s\n", coord))
     coord_x <- paste(coord, "x", sep="_")
     coord_y <- paste(coord, "y", sep="_")
     
     # compute average patch
     patches <- foreach (i = 1:nrow(train_set), .combine=rbind) %do% {
-      im  <- matrix(data = im.train[i,], nrow=96, ncol=96)
+      im  <- matrix(data = train_img[i,], nrow=96, ncol=96)
       x   <- train_set[i, coord_x]
       y   <- train_set[i, coord_y]
-      x1  <- (x-patch_size)
-      x2  <- (x+patch_size)
-      y1  <- (y-patch_size)
-      y2  <- (y+patch_size)
+      x1  <- (x - patch_size)
+      x2  <- (x + patch_size)
+      y1  <- (y - patch_size)
+      y2  <- (y + patch_size)
       if ( (!is.na(x)) && (!is.na(y)) && (x1>=1) && (x2<=96) && (y1>=1) && (y2<=96) )
       {
         as.vector(im[x1:x2, y1:y2])
@@ -91,7 +94,7 @@ pred_algo_image <- function(train_set, test_set){
         NULL
       }
     }
-    matrix(data = colMeans(patches), nrow=2*patch_size+1, ncol=2*patch_size+1)
+    matrix(data = colMeans(patches), nrow=2 * patch_size + 1, ncol=2 * patch_size + 1)
   }
   
   # for each coordinate and for each test image, find the position that best correlates with the average patch
@@ -101,29 +104,31 @@ pred_algo_image <- function(train_set, test_set){
     coord_x <- paste(coord, "x", sep="_")
     coord_y <- paste(coord, "y", sep="_")
     
-    # the average of them in the training set (our starting point)
-    mean_x  <- mean(train_set[, coord_x], na.rm=T)
-    mean_y  <- mean(train_set[, coord_y], na.rm=T)
-    
-    # search space: 'search_size' pixels centered on the average coordinates 
-    x1 <- as.integer(mean_x)-search_size
-    x2 <- as.integer(mean_x)+search_size
-    y1 <- as.integer(mean_y)-search_size
-    y2 <- as.integer(mean_y)+search_size
-    
-    # ensure we only consider patches completely inside the image
-    x1 <- ifelse(x1-patch_size<1,  patch_size+1,  x1)
-    y1 <- ifelse(y1-patch_size<1,  patch_size+1,  y1)
-    x2 <- ifelse(x2+patch_size>96, 96-patch_size, x2)
-    y2 <- ifelse(y2+patch_size>96, 96-patch_size, y2)
-    
-    # build a list of all positions to be tested
-    params <- expand.grid(x = x1:x2, y = y1:y2)
-    
+  
     # for each image...
     r <- foreach(i = 1:nrow(test_set), .combine=rbind) %do% {
       if ((coord_i==1)&&((i %% 100)==0)) { cat(sprintf("%d/%d\n", i, nrow(test_set))) }
-      im <- matrix(data = im.test[i,], nrow=96, ncol=96)
+      
+      # the average of them in the training set (our starting point)
+      start_x  <- test_set[i,][coord_x];
+      start_y  <- test_set[i,][coord_y];
+      
+      # search space: 'search_size' pixels centered on the average coordinates 
+      x1 <- as.integer(start_x) - search_size
+      x2 <- as.integer(start_x) + search_size
+      y1 <- as.integer(start_y) - search_size
+      y2 <- as.integer(start_y) + search_size
+      
+      # ensure we only consider patches completely inside the image
+      x1 <- ifelse(x1-patch_size<1,  patch_size+1,  x1)
+      y1 <- ifelse(y1-patch_size<1,  patch_size+1,  y1)
+      x2 <- ifelse(x2+patch_size>96, 96-patch_size, x2)
+      y2 <- ifelse(y2+patch_size>96, 96-patch_size, y2)
+      
+      # build a list of all positions to be tested
+      params <- expand.grid(x = x1:x2, y = y1:y2)
+      
+      im <- matrix(data = test_img[i,], nrow=96, ncol=96)
       
       # ... compute a score for each position ...
       r  <- foreach(j = 1:nrow(params), .combine=rbind) %do% {
